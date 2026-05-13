@@ -1,7 +1,7 @@
 ---
 name: music-composer
 description: Use when the user asks to write, compose, make, or generate a song as an actual MIDI/instrumental artifact rather than lyrics or a Suno prompt. Creates original MIDI songs, melodies, chord progressions, website music, game music, ambient loops, and short title-based compositions.
-version: 1.1.0
+version: 1.2.0
 author: lostviolinist
 license: MIT
 metadata:
@@ -48,7 +48,7 @@ When making a song from scratch:
 5. End on a resolving tonic chord.
 6. Assign the main melody to exactly one instrument.
 7. Let other instruments provide harmony, bass, rhythm, texture, or supporting responses. They may intertwine with the lead, but they must not double the main melody at the same time.
-8. Prefer a miniature form: intro, A theme, B variation, A return, resolution.
+8. Prefer a miniature form: intro, A theme, B variation, A return, coda, resolution.
 
 ## Default Workflow
 
@@ -59,13 +59,15 @@ When making a song from scratch:
 5. Shape a motif through repetition, contrast, and return.
 6. Add accompaniment in this order: harmony, bass, rhythm, texture.
 7. Generate MIDI and a manifest using `scripts/generate_song.py`.
-8. Check the manifest:
+8. Run the critic on the manifest using `scripts/critique_song.py`.
+9. Check the manifest and critic output:
    - duration is roughly 60 seconds
-   - form includes intro, A theme, B variation, A return, and resolution
+   - form includes intro, A theme, B variation, A return, coda, and resolution
+   - the coda avoids repeating the same phrase for the final four bars
    - final chord resolves to tonic
    - only one instrument owns `main_melody`
    - supporting instruments do not duplicate the main melody
-9. Revise if the result feels cluttered, unresolved, or too generic.
+10. Revise if the result feels cluttered, unresolved, too repetitive, or too generic.
 
 ## Tool Use
 
@@ -82,6 +84,12 @@ The script writes:
 - a `.mid` file
 - a `.json` manifest describing title, genre, time signature, key, form, chords, instruments, duration, and melody ownership
 
+Critique the result:
+
+```bash
+python3 "${HERMES_SKILL_DIR}/scripts/critique_song.py" ./out/title-goes-here.json
+```
+
 For deeper composing guidance, read `references/composer-protocol.md`.
 
 ## Common Pitfalls
@@ -90,12 +98,15 @@ For deeper composing guidance, read `references/composer-protocol.md`.
 2. Do not end on a dominant, suspended, or unresolved chord. The final chord should be tonic.
 3. Do not switch genre or chord language midway through the piece.
 4. Do not treat the generator output as only prose. Return the generated `.mid` path and manifest summary.
+5. Do not ignore the critic if it flags repetitive pre-resolution bars.
 
 ## Verification Checklist
 
 - [ ] The song has a title.
 - [ ] The generated duration is roughly 55-65 seconds.
 - [ ] The manifest includes a clear miniature form.
+- [ ] The coda provides a distinct lead-in to the resolution.
+- [ ] The critic score is high, or any findings are explained.
 - [ ] The final chord is tonic.
 - [ ] Exactly one instrument owns the main melody.
 - [ ] Supporting instruments play harmony, bass, rhythm, texture, or responses rather than the lead melody.

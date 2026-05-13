@@ -2,7 +2,7 @@
 
 This repository contains a Hermes-compatible skill for generating short MIDI songs from a title. It is for actual MIDI/instrumental artifacts, not lyrics or Suno prompts.
 
-The skill asks for or uses a title, chooses a genre, time signature, key, chords, sectional form, instruments, and a single main melody owner, then generates a roughly one-minute MIDI file that ends on a resolving tonic chord.
+The skill asks for or uses a title, chooses a genre, time signature, key, chords, sectional form, instruments, and a single main melody owner, then generates a roughly one-minute MIDI file that ends on a resolving tonic chord. It also includes a deterministic critic for checking form, resolution, and repetition.
 
 ## Install
 
@@ -38,3 +38,9 @@ python3 ~/.hermes/skills/music-composer/scripts/generate_song.py "Rain on the De
 ```
 
 It writes a `.mid` file and a `.json` manifest describing the musical choices, including the song form.
+
+Critique a generated manifest:
+
+```bash
+python3 ~/.hermes/skills/music-composer/scripts/critique_song.py ./out/rain-on-the-desk.json
+```

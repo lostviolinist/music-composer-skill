@@ -17,7 +17,7 @@ Use these title cues:
 
 - Target duration: 55-65 seconds.
 - Always end with a tonic chord in the home key.
-- Prefer a tiny but clear form: intro, A theme, B variation, A return, resolution.
+- Prefer a tiny but clear form: intro, A theme, B variation, A return, coda, resolution.
 - Use one chord language throughout the song. Do not switch genre or harmonic vocabulary mid-song unless asked.
 - Avoid too many instruments. Four to six instruments is usually enough.
 
@@ -27,7 +27,22 @@ Use these title cues:
 - Bring the motif back after a contrasting section so the listener recognizes it.
 - Use smooth chord voicings rather than always stacking chords from root position.
 - Vary velocities and timing slightly so the MIDI does not feel fully quantized.
-- Let arrangement energy change by section: sparse intro, clear A theme, fuller B variation, recognizable return, calm ending.
+- Let arrangement energy change by section: sparse intro, clear A theme, fuller B variation, recognizable return, cadential coda, calm ending.
+- The four bars before the resolution should behave like a coda, not like another repeated loop.
+
+## Critic Pass
+
+After generation, run `scripts/critique_song.py` against the manifest.
+
+The critic checks:
+
+- duration
+- expected form
+- tonic ending
+- main melody ownership
+- repetitive final pre-resolution bars
+
+If the critic flags repetition before the resolution, revise the coda before delivering the MIDI.
 
 ## Melody Ownership
 

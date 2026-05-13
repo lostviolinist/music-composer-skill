@@ -388,24 +388,35 @@ def track_with_program(name: str, channel: int, instrument: str) -> MidiTrack:
 
 def make_sections(bars: int) -> list[Section]:
     intro = 2 if bars >= 17 else 1
-    ending = 1
-    body = max(8, bars - intro - ending)
-    a_theme = min(8, max(4, body // 3 + 2))
-    b_variation = min(6, max(4, body // 4 + 1))
-    a_return = max(4, body - a_theme - b_variation)
+    coda = 4 if bars >= 18 else 2
+    resolution = 1
+    body = max(8, bars - intro - coda - resolution)
+    a_theme = min(8, max(4, body // 2))
+    b_variation = min(6, max(3, (body - a_theme) // 2))
+    a_return = body - a_theme - b_variation
+    while a_return < 2 and a_theme > 4:
+        a_theme -= 1
+        a_return += 1
+    while a_return < 2 and b_variation > 3:
+        b_variation -= 1
+        a_return += 1
+    a_return = max(2, a_return)
 
     sections = [
         Section("intro", 0, intro, 0.55),
         Section("A theme", intro, a_theme, 0.9),
         Section("B variation", intro + a_theme, b_variation, 1.05),
         Section("A return", intro + a_theme + b_variation, a_return, 0.95),
+        Section("coda", intro + a_theme + b_variation + a_return, coda, 0.62),
     ]
     used = sum(section.bar_count for section in sections)
-    if used < bars - ending:
-        extra = bars - ending - used
-        last = sections[-1]
-        sections[-1] = Section(last.name, last.start_bar, last.bar_count + extra, last.energy)
-    sections.append(Section("resolution", bars - ending, ending, 0.45))
+    if used < bars - resolution:
+        extra = bars - resolution - used
+        a_return_section = sections[-2]
+        coda_section = sections[-1]
+        sections[-2] = Section(a_return_section.name, a_return_section.start_bar, a_return_section.bar_count + extra, a_return_section.energy)
+        sections[-1] = Section(coda_section.name, coda_section.start_bar + extra, coda_section.bar_count, coda_section.energy)
+    sections.append(Section("resolution", bars - resolution, resolution, 0.45))
     return sections
 
 
@@ -512,6 +523,8 @@ def add_support(
         for index, offset in enumerate(range(0, bar_ticks, step)):
             if index % 3 == 1 or (section.name == "A theme" and index % 4 == 3):
                 continue
+            if section.name == "coda" and index % 2 == 1:
+                continue
             note = tones[index % len(tones)]
             velocity = 34 if section.name == "intro" else int(34 + section.energy * 10)
             humanized_note(track, channel, note, start + offset, int(step * 0.62), velocity, rng, timing=10)
@@ -543,7 +556,7 @@ def add_drums(
             if numerator == 3 and beat in (1, 2):
                 humanized_note(track, 9, 38, tick, PPQ // 10, 38, rng, timing=5)
             humanized_note(track, 9, 42, tick, PPQ // 12, hat_velocity, rng, timing=4)
-            if denominator == 4 and section.name != "intro":
+            if denominator == 4 and section.name not in {"intro", "coda"}:
                 humanized_note(track, 9, 42, tick + beat_ticks // 2, PPQ // 12, hat_velocity - 8, rng, timing=4)
 
 
@@ -570,6 +583,13 @@ def phrase_for_section(motif: list[int], section: Section, local_bar: int, mode:
         if local_bar % 4 == 3:
             return motif[:2] + [2 if mode == "minor" else 3, 1]
         return motif if local_bar % 2 == 0 else [min(7, degree + 1) for degree in motif]
+    if section.name == "coda":
+        cadences = (
+            [[5, 4, 3], [4, 3, 2], [3, 2, 1], [2, 1]]
+            if mode == "major"
+            else [[5, 4, 3], [6, 5, 4], [4, 2, 1], [7, 2, 1]]
+        )
+        return cadences[min(local_bar, len(cadences) - 1)]
     if local_bar % 4 == 1:
         return [min(7, degree + 1) for degree in motif]
     if local_bar % 4 == 2:
@@ -728,7 +748,7 @@ def build_song(title: str, out_dir: Path) -> dict[str, object]:
         "instruments": instruments,
         "main_melody_owner": lead,
         "main_melody_policy": "Only the main melody track contains the primary melody; other tracks play harmony, bass, rhythm, or supporting figures.",
-        "main_melody_events": melody_events[:16],
+        "main_melody_events": melody_events,
         "midi_file": str(midi_path),
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
