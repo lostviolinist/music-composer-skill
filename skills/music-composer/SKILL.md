@@ -1,6 +1,6 @@
 ---
 name: music-composer
-description: Use when creating original MIDI songs, chord progressions, short instrumental pieces, ambient loops, website music, game music, or agent-generated compositions from a title or short prompt.
+description: Use when the user asks to write, compose, make, or generate a song as an actual MIDI/instrumental artifact rather than lyrics or a Suno prompt. Creates original MIDI songs, melodies, chord progressions, website music, game music, ambient loops, and short title-based compositions.
 version: 1.0.0
 author: lostviolinist
 license: MIT
@@ -18,19 +18,25 @@ Create a short original MIDI composition from a title. The skill turns the title
 
 Use the bundled generator for the first artifact, then revise only within the same musical world unless the user asks for a different direction.
 
+This skill is for producing a `.mid` file and manifest, not for writing lyrics or prompts for external music generators.
+
 ## When to Use
 
-- The user asks Hermes to compose, generate, or make a song.
+- The user asks Hermes to compose, generate, make, or write a song and appears to want an actual generated music file.
 - The user wants MIDI music, website music, game music, short instrumental cues, ambient loops, or title-based compositions.
 - The user provides a title and expects the agent to choose chords, meter, genre, and instruments.
+- The user says "write me a song" and then clarifies they want a MIDI/instrumental composition rather than lyrics.
 
 Do not use this skill for full audio model generation, lyric writing, playlist curation, or music theory explanation unless the user also wants a generated MIDI composition.
+
+If the user only says "write me a song" and does not specify lyrics vs MIDI, ask one short clarification: "Do you want lyrics, or should I generate a MIDI instrumental?" If this skill was explicitly invoked with `/music-composer`, assume MIDI and proceed.
 
 ## Core Protocol
 
 When making a song from scratch:
 
 1. Ask the user for a title if they did not provide one.
+   - If they gave only a broad theme such as "love", make a simple title from it, such as "Love, Lightly Held", and continue unless they asked to choose the title themselves.
 2. Derive one stable musical world from the title:
    - chord progression
    - time signature
@@ -65,6 +71,8 @@ Generate a starter MIDI composition:
 ```bash
 python3 "${HERMES_SKILL_DIR}/scripts/generate_song.py" "Title Goes Here" --out ./out
 ```
+
+If `${HERMES_SKILL_DIR}` is unavailable, first locate this skill directory under `~/.hermes/skills/music-composer`.
 
 The script writes:
 

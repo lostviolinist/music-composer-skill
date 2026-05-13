@@ -1,6 +1,6 @@
 # Hermes Music Composer Skill
 
-This repository contains a Hermes-compatible skill for generating short MIDI songs from a title.
+This repository contains a Hermes-compatible skill for generating short MIDI songs from a title. It is for actual MIDI/instrumental artifacts, not lyrics or Suno prompts.
 
 The skill asks for or uses a title, chooses a genre, time signature, key, chords, instruments, and a single main melody owner, then generates a roughly one-minute MIDI file that ends on a resolving tonic chord.
 
@@ -23,9 +23,13 @@ Then start a new Hermes session so the skill is loaded.
 
 ## Use
 
+For reliable skill selection, invoke it directly:
+
 ```text
 /music-composer Make a song titled Rain on the Desk.
 ```
+
+If you ask Hermes "can you write me a song?" without naming this skill, Hermes may choose its bundled lyric/Suno songwriting skill instead. Ask for a MIDI song or use `/music-composer` when you want this generator.
 
 The generator can also be run directly:
 
