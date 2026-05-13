@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Generate a deterministic one-minute MIDI song from a title.
 
-The generator intentionally enforces the first version of the composer protocol:
-one stable genre/chord world, one main melody owner, supporting accompaniment,
-and a resolving tonic ending.
+The generator enforces the composer protocol: one stable genre/chord world,
+one main melody owner, supporting accompaniment, and a resolving tonic ending.
+It also gives each song a tiny form so the result feels composed instead of
+only looped.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ import struct
 from dataclasses import dataclass
 from pathlib import Path
 from random import Random
-from typing import Iterable
+from typing import Iterable, Optional
 
 
 PPQ = 480
@@ -81,6 +82,14 @@ class GenreProfile:
     bass_instrument: str
     harmony_instrument: str
     uses_drums: bool
+
+
+@dataclass(frozen=True)
+class Section:
+    name: str
+    start_bar: int
+    bar_count: int
+    energy: float
 
 
 PROFILES = [
@@ -269,6 +278,36 @@ def chord_notes(key: int, chord: Chord, octave: int) -> list[int]:
     return [root + interval for interval in CHORD_QUALITIES[chord.quality]]
 
 
+def chord_for_bar(progression: list[Chord], resolving_chord: Chord, bar: int, bars: int) -> Chord:
+    if bar == bars - 1:
+        return resolving_chord
+    return progression[bar % len(progression)]
+
+
+def chord_voicing(key: int, chord: Chord, previous: Optional[list[int]] = None) -> list[int]:
+    pitch_classes = []
+    for note in chord_notes(key, chord, 3):
+        pitch_class = note % 12
+        if pitch_class not in pitch_classes:
+            pitch_classes.append(pitch_class)
+
+    if previous:
+        targets = previous[: len(pitch_classes)]
+        if len(targets) < len(pitch_classes):
+            targets.extend([targets[-1] + 3] * (len(pitch_classes) - len(targets)))
+    else:
+        targets = [60 + index * 4 for index in range(len(pitch_classes))]
+
+    voicing = []
+    for pitch_class, target in zip(pitch_classes, targets):
+        candidates = [pitch_class + 12 * octave for octave in range(3, 7)]
+        candidates = [pitch for pitch in candidates if 52 <= pitch <= 79]
+        voicing.append(min(candidates, key=lambda pitch: abs(pitch - target)))
+
+    voicing.sort()
+    return voicing
+
+
 def scale_pitch(key: int, mode: str, degree: int, octave: int) -> int:
     scale = MINOR_SCALE if mode == "minor" else MAJOR_SCALE
     zero_based = degree - 1
@@ -304,6 +343,9 @@ class MidiTrack:
         self._order += 1
 
     def note(self, channel: int, pitch: int, start: int, duration: int, velocity: int) -> None:
+        start = max(0, start)
+        duration = max(1, duration)
+        velocity = max(1, min(127, velocity))
         self.add(start, bytes([0x90 | channel, pitch, velocity]))
         self.add(start + duration, bytes([0x80 | channel, pitch, 0]))
 
@@ -344,61 +386,165 @@ def track_with_program(name: str, channel: int, instrument: str) -> MidiTrack:
     return track
 
 
-def add_harmony(track: MidiTrack, channel: int, key: int, chords: list[Chord], bar_ticks: int, bars: int) -> None:
+def make_sections(bars: int) -> list[Section]:
+    intro = 2 if bars >= 17 else 1
+    ending = 1
+    body = max(8, bars - intro - ending)
+    a_theme = min(8, max(4, body // 3 + 2))
+    b_variation = min(6, max(4, body // 4 + 1))
+    a_return = max(4, body - a_theme - b_variation)
+
+    sections = [
+        Section("intro", 0, intro, 0.55),
+        Section("A theme", intro, a_theme, 0.9),
+        Section("B variation", intro + a_theme, b_variation, 1.05),
+        Section("A return", intro + a_theme + b_variation, a_return, 0.95),
+    ]
+    used = sum(section.bar_count for section in sections)
+    if used < bars - ending:
+        extra = bars - ending - used
+        last = sections[-1]
+        sections[-1] = Section(last.name, last.start_bar, last.bar_count + extra, last.energy)
+    sections.append(Section("resolution", bars - ending, ending, 0.45))
+    return sections
+
+
+def section_for_bar(sections: list[Section], bar: int) -> Section:
+    for section in sections:
+        if section.start_bar <= bar < section.start_bar + section.bar_count:
+            return section
+    return sections[-1]
+
+
+def humanized_note(
+    track: MidiTrack,
+    channel: int,
+    pitch: int,
+    start: int,
+    duration: int,
+    velocity: int,
+    rng: Random,
+    timing: int = 8,
+    velocity_jitter: int = 5,
+) -> None:
+    track.note(
+        channel,
+        pitch,
+        start + rng.randint(-timing, timing),
+        duration + rng.randint(-timing, timing),
+        velocity + rng.randint(-velocity_jitter, velocity_jitter),
+    )
+
+
+def add_harmony(
+    track: MidiTrack,
+    channel: int,
+    key: int,
+    progression: list[Chord],
+    resolving_chord: Chord,
+    bar_ticks: int,
+    bars: int,
+    sections: list[Section],
+    rng: Random,
+) -> None:
+    previous_voicing = None
     for bar in range(bars):
-        chord = chords[bar % len(chords)]
-        if bar == bars - 1:
-            chord = chords[-1]
+        chord = chord_for_bar(progression, resolving_chord, bar, bars)
+        section = section_for_bar(sections, bar)
         start = bar * bar_ticks
         duration = bar_ticks if bar == bars - 1 else int(bar_ticks * 0.92)
-        for note in chord_notes(key, chord, 4):
-            track.note(channel, note, start, duration, 52)
+        voicing = chord_voicing(key, chord, previous_voicing)
+        previous_voicing = voicing
+        velocity = int(45 + section.energy * 12)
+        for index, note in enumerate(voicing):
+            strum = 0 if section.name == "resolution" else index * rng.randint(5, 14)
+            humanized_note(track, channel, note, start + strum, duration, velocity, rng, timing=4)
 
 
-def add_bass(track: MidiTrack, channel: int, key: int, chords: list[Chord], bar_ticks: int, bars: int) -> None:
+def add_bass(
+    track: MidiTrack,
+    channel: int,
+    key: int,
+    progression: list[Chord],
+    resolving_chord: Chord,
+    bar_ticks: int,
+    bars: int,
+    sections: list[Section],
+    rng: Random,
+) -> None:
     for bar in range(bars):
-        chord = chords[bar % len(chords)]
-        if bar == bars - 1:
-            chord = chords[-1]
+        chord = chord_for_bar(progression, resolving_chord, bar, bars)
+        section = section_for_bar(sections, bar)
         root = 12 * 3 + key + chord.root_offset
         fifth = root + 7
+        octave = root + 12
         start = bar * bar_ticks
         if bar == bars - 1:
             track.note(channel, root, start, bar_ticks, 74)
             continue
-        track.note(channel, root, start, int(bar_ticks * 0.46), 76)
-        track.note(channel, fifth, start + bar_ticks // 2, int(bar_ticks * 0.42), 60)
+        base_velocity = int(58 + section.energy * 18)
+        humanized_note(track, channel, root, start, int(bar_ticks * 0.46), base_velocity, rng, timing=7)
+        if section.name in {"B variation", "A return"}:
+            humanized_note(track, channel, octave, start + bar_ticks // 4, int(bar_ticks * 0.18), 46, rng, timing=8)
+        humanized_note(track, channel, fifth, start + bar_ticks // 2, int(bar_ticks * 0.42), 58, rng, timing=7)
 
 
-def add_support(track: MidiTrack, channel: int, key: int, chords: list[Chord], bar_ticks: int, bars: int) -> None:
+def add_support(
+    track: MidiTrack,
+    channel: int,
+    key: int,
+    progression: list[Chord],
+    resolving_chord: Chord,
+    bar_ticks: int,
+    bars: int,
+    sections: list[Section],
+    rng: Random,
+) -> None:
     step = max(PPQ // 2, bar_ticks // 6)
     for bar in range(bars - 1):
-        chord = chords[bar % len(chords)]
-        tones = chord_notes(key, chord, 5)
+        section = section_for_bar(sections, bar)
+        if section.name == "intro" and bar % 2 == 0:
+            continue
+        chord = chord_for_bar(progression, resolving_chord, bar, bars)
+        tones = chord_voicing(key, chord)
+        tones = [note + 12 for note in tones if note + 12 <= 88]
         start = bar * bar_ticks
         for index, offset in enumerate(range(0, bar_ticks, step)):
-            if index % 3 == 1:
+            if index % 3 == 1 or (section.name == "A theme" and index % 4 == 3):
                 continue
             note = tones[index % len(tones)]
-            track.note(channel, note, start + offset, int(step * 0.72), 42)
+            velocity = 34 if section.name == "intro" else int(34 + section.energy * 10)
+            humanized_note(track, channel, note, start + offset, int(step * 0.62), velocity, rng, timing=10)
 
 
-def add_drums(track: MidiTrack, bar_ticks: int, bars: int, time_signature: tuple[int, int]) -> None:
+def add_drums(
+    track: MidiTrack,
+    bar_ticks: int,
+    bars: int,
+    time_signature: tuple[int, int],
+    sections: list[Section],
+    rng: Random,
+) -> None:
     numerator, denominator = time_signature
     beat_ticks = int(PPQ * 4 / denominator)
     for bar in range(bars - 1):
+        section = section_for_bar(sections, bar)
+        if section.name == "intro" and bar == 0:
+            continue
         start = bar * bar_ticks
         for beat in range(numerator):
             tick = start + beat * beat_ticks
+            kick_velocity = int(58 + section.energy * 24)
+            hat_velocity = int(22 + section.energy * 18)
             if beat == 0:
-                track.note(9, 36, tick, PPQ // 8, 84)
+                humanized_note(track, 9, 36, tick, PPQ // 8, kick_velocity, rng, timing=5)
             if numerator == 4 and beat in (1, 3):
-                track.note(9, 38, tick, PPQ // 8, 62)
+                humanized_note(track, 9, 38, tick, PPQ // 8, 52, rng, timing=5)
             if numerator == 3 and beat in (1, 2):
-                track.note(9, 38, tick, PPQ // 10, 42)
-            track.note(9, 42, tick, PPQ // 12, 36)
-            if denominator == 4:
-                track.note(9, 42, tick + beat_ticks // 2, PPQ // 12, 28)
+                humanized_note(track, 9, 38, tick, PPQ // 10, 38, rng, timing=5)
+            humanized_note(track, 9, 42, tick, PPQ // 12, hat_velocity, rng, timing=4)
+            if denominator == 4 and section.name != "intro":
+                humanized_note(track, 9, 42, tick + beat_ticks // 2, PPQ // 12, hat_velocity - 8, rng, timing=4)
 
 
 def melody_degrees(rng: Random, mode: str) -> list[int]:
@@ -412,6 +558,27 @@ def melody_degrees(rng: Random, mode: str) -> list[int]:
     return motif
 
 
+def phrase_for_section(motif: list[int], section: Section, local_bar: int, mode: str) -> list[int]:
+    if section.name == "intro":
+        return [] if local_bar == 0 else [motif[0], motif[-1]]
+    if section.name == "B variation":
+        contrast = [5, 6, 4, 2] if mode == "minor" else [6, 5, 3, 2]
+        if local_bar % 2 == 1:
+            return list(reversed(contrast))
+        return contrast
+    if section.name == "A return":
+        if local_bar % 4 == 3:
+            return motif[:2] + [2 if mode == "minor" else 3, 1]
+        return motif if local_bar % 2 == 0 else [min(7, degree + 1) for degree in motif]
+    if local_bar % 4 == 1:
+        return [min(7, degree + 1) for degree in motif]
+    if local_bar % 4 == 2:
+        return list(reversed(motif))
+    if local_bar % 4 == 3:
+        return motif[:2] + [1, 2 if mode == "minor" else 3]
+    return motif
+
+
 def add_main_melody(
     track: MidiTrack,
     channel: int,
@@ -420,28 +587,27 @@ def add_main_melody(
     bar_ticks: int,
     bars: int,
     time_signature: tuple[int, int],
+    sections: list[Section],
     rng: Random,
-) -> list[dict[str, int]]:
+) -> list[dict[str, object]]:
     motif = melody_degrees(rng, mode)
     numerator, denominator = time_signature
     beat_ticks = int(PPQ * 4 / denominator)
     melody_events = []
     for bar in range(bars):
         start = bar * bar_ticks
+        section = section_for_bar(sections, bar)
+        local_bar = bar - section.start_bar
         if bar == bars - 1:
             degree = 1 if rng.random() > 0.25 else 3
             pitch = scale_pitch(key, mode, degree, 5)
             track.note(channel, pitch, start, bar_ticks, 82)
-            melody_events.append({"bar": bar + 1, "degree": degree, "pitch": pitch, "start_tick": start})
+            melody_events.append({"bar": bar + 1, "section": section.name, "degree": degree, "pitch": pitch, "start_tick": start})
             continue
 
-        phrase = list(motif)
-        if bar % 4 == 1:
-            phrase = [min(7, degree + 1) for degree in motif]
-        elif bar % 4 == 2:
-            phrase = list(reversed(motif))
-        elif bar % 4 == 3:
-            phrase = motif[:2] + [1, 2 if mode == "minor" else 3]
+        phrase = phrase_for_section(motif, section, local_bar, mode)
+        if not phrase:
+            continue
 
         notes_this_bar = min(len(phrase), numerator if denominator == 4 else 3)
         for index in range(notes_this_bar):
@@ -449,8 +615,9 @@ def add_main_melody(
             pitch = scale_pitch(key, mode, degree, 5)
             offset = index * beat_ticks
             duration = int(beat_ticks * (0.78 if index < notes_this_bar - 1 else 1.35))
-            track.note(channel, pitch, start + offset, min(duration, bar_ticks - offset), 86)
-            melody_events.append({"bar": bar + 1, "degree": degree, "pitch": pitch, "start_tick": start + offset})
+            velocity = int(72 + section.energy * 14)
+            humanized_note(track, channel, pitch, start + offset, min(duration, bar_ticks - offset), velocity, rng, timing=9)
+            melody_events.append({"bar": bar + 1, "section": section.name, "degree": degree, "pitch": pitch, "start_tick": start + offset})
     return melody_events
 
 
@@ -495,6 +662,7 @@ def build_song(title: str, out_dir: Path) -> dict[str, object]:
             seconds_per_bar = bar_quarters * 60 / tempo
             duration_seconds = bars * seconds_per_bar
     bar_ticks = int(PPQ * bar_quarters)
+    sections = make_sections(bars)
 
     lead_pool = [
         instrument
@@ -511,10 +679,10 @@ def build_song(title: str, out_dir: Path) -> dict[str, object]:
     bass = track_with_program("bass", 1, profile.bass_instrument)
     lead_track = track_with_program("main melody", 2, lead)
     support_track = track_with_program("supporting figure", 3, support)
-    add_harmony(harmony, 0, key, chords, bar_ticks, bars)
-    add_bass(bass, 1, key, chords, bar_ticks, bars)
-    melody_events = add_main_melody(lead_track, 2, key, profile.mode, bar_ticks, bars, time_signature, rng)
-    add_support(support_track, 3, key, chords, bar_ticks, bars)
+    add_harmony(harmony, 0, key, progression, resolving_chord, bar_ticks, bars, sections, rng)
+    add_bass(bass, 1, key, progression, resolving_chord, bar_ticks, bars, sections, rng)
+    melody_events = add_main_melody(lead_track, 2, key, profile.mode, bar_ticks, bars, time_signature, sections, rng)
+    add_support(support_track, 3, key, progression, resolving_chord, bar_ticks, bars, sections, rng)
     tracks.extend([harmony, bass, lead_track, support_track])
 
     instruments = {
@@ -526,7 +694,7 @@ def build_song(title: str, out_dir: Path) -> dict[str, object]:
     if profile.uses_drums:
         drums = MidiTrack()
         drums.meta_text("drums")
-        add_drums(drums, bar_ticks, bars, time_signature)
+        add_drums(drums, bar_ticks, bars, time_signature, sections, rng)
         tracks.append(drums)
         instruments["drums"] = "standard drum kit"
 
@@ -545,6 +713,15 @@ def build_song(title: str, out_dir: Path) -> dict[str, object]:
         "key": note_name(key, profile.mode),
         "duration_seconds": round(duration_seconds, 2),
         "bar_count": bars,
+        "form": [
+            {
+                "name": section.name,
+                "start_bar": section.start_bar + 1,
+                "bar_count": section.bar_count,
+                "energy": section.energy,
+            }
+            for section in sections
+        ],
         "chords": [chord.symbol for chord in chords],
         "final_chord": resolving_chord.symbol,
         "resolution": "final bar uses tonic chord with root in bass",

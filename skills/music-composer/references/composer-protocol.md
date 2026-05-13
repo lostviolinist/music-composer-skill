@@ -17,9 +17,17 @@ Use these title cues:
 
 - Target duration: 55-65 seconds.
 - Always end with a tonic chord in the home key.
-- Prefer 8, 12, or 16 bar structures.
+- Prefer a tiny but clear form: intro, A theme, B variation, A return, resolution.
 - Use one chord language throughout the song. Do not switch genre or harmonic vocabulary mid-song unless asked.
 - Avoid too many instruments. Four to six instruments is usually enough.
+
+## Quality Rules
+
+- The main melody should grow from one small motif.
+- Bring the motif back after a contrasting section so the listener recognizes it.
+- Use smooth chord voicings rather than always stacking chords from root position.
+- Vary velocities and timing slightly so the MIDI does not feel fully quantized.
+- Let arrangement energy change by section: sparse intro, clear A theme, fuller B variation, recognizable return, calm ending.
 
 ## Melody Ownership
 
