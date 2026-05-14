@@ -81,7 +81,7 @@ The selected candidate should name its strategy and chord progression in the res
 The user should not have to run JSON commands. After delivering a song, ask:
 
 ```text
-What did you think: 1-5, and what should I change next time?
+What did you think: 1-5? And should the next one be stranger, simpler, more emotional, or more rhythmic?
 ```
 
 Record their response with `record_preference.py --opinion`. If the opinion mentions flat chords, repetitive form, busy drums, sparse texture, good coda, or a liked lead instrument, the memory file should preserve those clues for future generations.
@@ -97,6 +97,18 @@ If Hermes can render or inspect audio in the local environment, add a second mod
 - Does any section sound like filler?
 
 Use that feedback to regenerate candidates or ask the user which direction to prefer.
+
+## Research Harness
+
+For skill-level improvement work, use the repo-level harness:
+
+```bash
+python3 research/run_experiment.py --candidates 6 --label "short-description"
+```
+
+It runs a fixed set of eval titles, generates candidates, scores manifests, compares to `research/baselines/current.json` when present, and logs to `research/experiments.jsonl`.
+
+Use this before keeping changes to harmony, melody, coda, critic, or arranger logic.
 
 ## Melody Ownership
 

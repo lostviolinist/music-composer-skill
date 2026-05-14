@@ -1,0 +1,131 @@
+{
+  "label": "baseline",
+  "run_id": "20260514-165307",
+  "candidates": 6,
+  "summary": {
+    "aggregate_score": 121.08,
+    "min_score": 116.5,
+    "max_score": 126.5,
+    "metric_means": {
+      "validity": 30,
+      "harmonic_interest": 13.5,
+      "phrase_variety": 11.08,
+      "coda": 22.5,
+      "melody_contour": 24,
+      "internal_quality": 20
+    },
+    "harmonic_strategies": {
+      "passing_diminished": 3,
+      "secondary_dominant": 3,
+      "pedal_motion": 1,
+      "borrowed_chords": 1
+    },
+    "failure_count": 0
+  },
+  "titles": [
+    {
+      "title": "Rain on the Desk",
+      "total": 123.0,
+      "harmonic_strategy": "passing_diminished",
+      "chords": [
+        "Imaj7",
+        "#Idim7",
+        "ii7",
+        "V7",
+        "Iadd9"
+      ],
+      "critic_score": 100
+    },
+    {
+      "title": "Neon City Signal",
+      "total": 126.5,
+      "harmonic_strategy": "secondary_dominant",
+      "chords": [
+        "i9",
+        "V/bVI",
+        "bVImaj7",
+        "V7",
+        "i9"
+      ],
+      "critic_score": 100
+    },
+    {
+      "title": "Love Lightly Held",
+      "total": 119.38,
+      "harmonic_strategy": "passing_diminished",
+      "chords": [
+        "i9",
+        "#idim7",
+        "ii-halfdim7",
+        "V7",
+        "i9"
+      ],
+      "critic_score": 100
+    },
+    {
+      "title": "Garden Light",
+      "total": 120.5,
+      "harmonic_strategy": "pedal_motion",
+      "chords": [
+        "Iadd9",
+        "IV/I",
+        "bVII/I",
+        "V7",
+        "Iadd9"
+      ],
+      "critic_score": 100
+    },
+    {
+      "title": "Silver Winter Mirror",
+      "total": 119.38,
+      "harmonic_strategy": "passing_diminished",
+      "chords": [
+        "i9",
+        "#idim7",
+        "ii-halfdim7",
+        "V7",
+        "i9"
+      ],
+      "critic_score": 100
+    },
+    {
+      "title": "Flat Chords No More",
+      "total": 124.0,
+      "harmonic_strategy": "secondary_dominant",
+      "chords": [
+        "i9",
+        "V/bVI",
+        "bVImaj7",
+        "V7",
+        "i9"
+      ],
+      "critic_score": 100
+    },
+    {
+      "title": "Porch Light Memory",
+      "total": 116.5,
+      "harmonic_strategy": "secondary_dominant",
+      "chords": [
+        "Imaj7",
+        "V/vi",
+        "vi7",
+        "V7",
+        "Iadd9"
+      ],
+      "critic_score": 100
+    },
+    {
+      "title": "Machine Heart Waltz",
+      "total": 119.38,
+      "harmonic_strategy": "borrowed_chords",
+      "chords": [
+        "i9",
+        "bVImaj7",
+        "iv9",
+        "V7",
+        "i9"
+      ],
+      "critic_score": 100
+    }
+  ]
+}

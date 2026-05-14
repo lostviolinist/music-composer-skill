@@ -29,6 +29,14 @@ For reliable skill selection, invoke it directly:
 /music-composer Make a song titled Rain on the Desk.
 ```
 
+Good prompts:
+
+```text
+/music-composer make a 1-minute MIDI song titled Rain on the Desk with 6 candidates
+/music-composer make the chords stranger than last time
+/music-composer make a gentler version and remember my feedback
+```
+
 If you ask Hermes "can you write me a song?" without naming this skill, Hermes may choose its bundled lyric/Suno songwriting skill instead. Ask for a MIDI song or use `/music-composer` when you want this generator.
 
 The generator can also be run directly:
@@ -52,3 +60,14 @@ python3 ~/.hermes/skills/music-composer/scripts/record_preference.py ./out/rain-
 ```
 
 In normal Hermes use, the agent should ask for your opinion after it generates a song and run this command for you.
+
+## Research Harness
+
+For skill improvement experiments:
+
+```bash
+python3 research/run_experiment.py --candidates 6 --label "baseline" --write-baseline
+python3 research/run_experiment.py --candidates 6 --label "new-idea"
+```
+
+The harness evaluates a fixed title set, writes reports under `research/runs/`, and appends summaries to `research/experiments.jsonl`.

@@ -1,7 +1,7 @@
 ---
 name: music-composer
 description: Use when the user asks to write, compose, make, or generate a song as an actual MIDI/instrumental artifact rather than lyrics or a Suno prompt. Creates original MIDI songs, melodies, chord progressions, website music, game music, ambient loops, and short title-based compositions.
-version: 1.5.0
+version: 1.6.0
 author: lostviolinist
 license: MIT
 metadata:
@@ -72,7 +72,13 @@ When making a song from scratch:
    - supporting instruments do not duplicate the main melody
 10. Deliver the MIDI path, manifest path, selected candidate, critic score, and a compact musical summary.
     - Include the selected harmonic strategy and chord progression.
-11. Ask: "What did you think: 1-5, and what should I change next time?"
+    - Mention why the candidate was selected, for example: stronger harmony, cleaner coda, or better motif.
+11. Ask exactly one feedback question:
+
+```text
+What did you think: 1-5? And should the next one be stranger, simpler, more emotional, or more rhythmic?
+```
+
 12. When the user replies with feedback, record it with `scripts/record_preference.py` using the manifest path from the most recent generated song.
 13. Revise if the result feels cluttered, unresolved, too repetitive, or too generic.
 
@@ -119,6 +125,30 @@ python3 "${HERMES_SKILL_DIR}/scripts/generate_song.py" "New Title" --out ./out -
 
 For deeper composing guidance, read `references/composer-protocol.md`. For compact examples of good title-to-genre mappings, read `references/song-recipes.json`.
 
+## Research Mode
+
+Use the repo-level research harness when the user asks to improve, optimize, evaluate, benchmark, or experiment with the music-composer skill itself.
+
+Run a fixed evaluation:
+
+```bash
+python3 research/run_experiment.py --candidates 6 --label "experiment-name"
+```
+
+Create or refresh the current baseline:
+
+```bash
+python3 research/run_experiment.py --candidates 6 --label "baseline" --write-baseline
+```
+
+The harness writes:
+
+- `research/runs/<run-id>/report.json`
+- `research/experiments.jsonl`
+- optional `research/baselines/current.json`
+
+When using research mode, make one focused change at a time, run the harness, compare against baseline, and keep changes only if the aggregate score improves without validation failures. Read `research/program.md` before making research-driven edits.
+
 ## Common Pitfalls
 
 1. Do not let multiple instruments double the main melody. The manifest must have exactly one `main_melody_owner`.
@@ -128,13 +158,14 @@ For deeper composing guidance, read `references/composer-protocol.md`. For compa
 5. Do not ignore the critic if it flags repetitive pre-resolution bars.
 6. Do not make the user run preference commands manually. Ask for their opinion and record it yourself.
 7. Do not pick only safe diatonic harmony when the user asks for stranger or less flat chords.
+8. Do not change generator behavior without running the research harness when the task is explicitly about optimization or quality improvement.
 
 ## Feedback Loop
 
 After every delivered song, keep track of the manifest path in the conversation. Ask the user for a brief opinion:
 
 ```text
-What did you think: 1-5, and what should I change next time?
+What did you think: 1-5? And should the next one be stranger, simpler, more emotional, or more rhythmic?
 ```
 
 When the user responds, call:
@@ -148,6 +179,27 @@ Then acknowledge what was learned in one sentence. Future generations should inc
 ```bash
 --preferences ~/.hermes/music-composer-preferences.json
 ```
+
+## Response Style
+
+When delivering a generated song, use this compact shape:
+
+```text
+Made it: <title>
+
+MIDI: <path>
+Manifest: <path>
+Composition plan: <path>
+
+Selected candidate <n>/<count>: <genre>, <time signature>, <key>, <tempo> BPM
+Harmony: <harmonic_strategy> using <chords>
+Lead: <main_melody_owner>
+Why this one: <one short reason from score/critic/candidate table>
+
+What did you think: 1-5? And should the next one be stranger, simpler, more emotional, or more rhythmic?
+```
+
+Do not dump the full manifest unless the user asks. Do not ask multiple follow-up questions after delivery; keep feedback collection easy.
 
 ## Verification Checklist
 
