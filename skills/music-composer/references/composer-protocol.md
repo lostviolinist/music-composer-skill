@@ -59,6 +59,16 @@ This is the skill equivalent of fine-tuning: the model is not retrained, but exa
 
 Use `references/song-recipes.json` as compact taste examples when the title is ambiguous.
 
+## Conversational Feedback
+
+The user should not have to run JSON commands. After delivering a song, ask:
+
+```text
+What did you think: 1-5, and what should I change next time?
+```
+
+Record their response with `record_preference.py --opinion`. If the opinion mentions flat chords, repetitive form, busy drums, sparse texture, good coda, or a liked lead instrument, the memory file should preserve those clues for future generations.
+
 ## Optional Listener Critic
 
 If Hermes can render or inspect audio in the local environment, add a second model pass after WAV rendering:

@@ -1,7 +1,7 @@
 ---
 name: music-composer
 description: Use when the user asks to write, compose, make, or generate a song as an actual MIDI/instrumental artifact rather than lyrics or a Suno prompt. Creates original MIDI songs, melodies, chord progressions, website music, game music, ambient loops, and short title-based compositions.
-version: 1.3.0
+version: 1.4.0
 author: lostviolinist
 license: MIT
 metadata:
@@ -49,6 +49,7 @@ When making a song from scratch:
 6. Assign the main melody to exactly one instrument.
 7. Let other instruments provide harmony, bass, rhythm, texture, or supporting responses. They may intertwine with the lead, but they must not double the main melody at the same time.
 8. Prefer a miniature form: intro, A theme, B variation, A return, coda, resolution.
+9. After delivering the song, ask the user for a short opinion and record it as preference memory.
 
 ## Default Workflow
 
@@ -67,7 +68,10 @@ When making a song from scratch:
    - final chord resolves to tonic
    - only one instrument owns `main_melody`
    - supporting instruments do not duplicate the main melody
-10. Revise if the result feels cluttered, unresolved, too repetitive, or too generic.
+10. Deliver the MIDI path, manifest path, selected candidate, critic score, and a compact musical summary.
+11. Ask: "What did you think: 1-5, and what should I change next time?"
+12. When the user replies with feedback, record it with `scripts/record_preference.py` using the manifest path from the most recent generated song.
+13. Revise if the result feels cluttered, unresolved, too repetitive, or too generic.
 
 ## Tool Use
 
@@ -101,7 +105,7 @@ python3 "${HERMES_SKILL_DIR}/scripts/render_audio.py" ./out/title-goes-here.mid
 Record user feedback as preference memory:
 
 ```bash
-python3 "${HERMES_SKILL_DIR}/scripts/record_preference.py" ./out/title-goes-here.json --rating like --note "liked the coda"
+python3 "${HERMES_SKILL_DIR}/scripts/record_preference.py" ./out/title-goes-here.json --opinion "4/5, liked the coda but the chords felt flat"
 ```
 
 Use preference memory in future generation:
@@ -119,6 +123,27 @@ For deeper composing guidance, read `references/composer-protocol.md`. For compa
 3. Do not switch genre or chord language midway through the piece.
 4. Do not treat the generator output as only prose. Return the generated `.mid` path and manifest summary.
 5. Do not ignore the critic if it flags repetitive pre-resolution bars.
+6. Do not make the user run preference commands manually. Ask for their opinion and record it yourself.
+
+## Feedback Loop
+
+After every delivered song, keep track of the manifest path in the conversation. Ask the user for a brief opinion:
+
+```text
+What did you think: 1-5, and what should I change next time?
+```
+
+When the user responds, call:
+
+```bash
+python3 "${HERMES_SKILL_DIR}/scripts/record_preference.py" "<last_manifest_path>" --opinion "<user feedback>"
+```
+
+Then acknowledge what was learned in one sentence. Future generations should include:
+
+```bash
+--preferences ~/.hermes/music-composer-preferences.json
+```
 
 ## Verification Checklist
 
@@ -128,6 +153,7 @@ For deeper composing guidance, read `references/composer-protocol.md`. For compa
 - [ ] The coda provides a distinct lead-in to the resolution.
 - [ ] The critic score is high, or any findings are explained.
 - [ ] If multiple candidates were generated, the selected candidate and score table are included.
+- [ ] The user was asked for an opinion after delivery.
 - [ ] The final chord is tonic.
 - [ ] Exactly one instrument owns the main melody.
 - [ ] Supporting instruments play harmony, bass, rhythm, texture, or responses rather than the lead melody.
