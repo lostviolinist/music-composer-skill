@@ -2,7 +2,7 @@
 
 This repository contains a Hermes-compatible skill for generating short MIDI songs from a title. It is for actual MIDI/instrumental artifacts, not lyrics or Suno prompts.
 
-The skill asks for or uses a title, chooses a genre, time signature, key, chords, sectional form, instruments, and a single main melody owner, then generates a roughly one-minute MIDI file that ends on a resolving tonic chord. It also includes a deterministic critic for checking form, resolution, and repetition.
+The skill asks for or uses a title, chooses a genre, time signature, key, chords, sectional form, instruments, and a single main melody owner, then generates a roughly one-minute MIDI file that ends on a resolving tonic chord. It also includes multi-candidate generation, a composition JSON, a deterministic critic, optional WAV rendering, and simple preference memory.
 
 ## Install
 
@@ -34,13 +34,19 @@ If you ask Hermes "can you write me a song?" without naming this skill, Hermes m
 The generator can also be run directly:
 
 ```bash
-python3 ~/.hermes/skills/music-composer/scripts/generate_song.py "Rain on the Desk" --out ./out
+python3 ~/.hermes/skills/music-composer/scripts/generate_song.py "Rain on the Desk" --out ./out --candidates 3
 ```
 
-It writes a `.mid` file and a `.json` manifest describing the musical choices, including the song form.
+It writes a `.mid` file, a `.json` manifest, and a `.composition.json` plan describing the musical choices, including the song form.
 
 Critique a generated manifest:
 
 ```bash
 python3 ~/.hermes/skills/music-composer/scripts/critique_song.py ./out/rain-on-the-desk.json
+```
+
+Record feedback:
+
+```bash
+python3 ~/.hermes/skills/music-composer/scripts/record_preference.py ./out/rain-on-the-desk.json --rating like --note "liked the sparse coda"
 ```

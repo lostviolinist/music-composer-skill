@@ -10,6 +10,8 @@ only looped.
 from __future__ import annotations
 
 import argparse
+import shutil
+import subprocess
 import hashlib
 import json
 import math
@@ -235,13 +237,13 @@ TITLE_PROFILE_HINTS = {
         "field", "forest", "hand", "harbor", "paper", "porch", "river", "thread", "wood",
     },
     "cinematic waltz": {
-        "ghost", "mirror", "storm", "velvet", "winter", "waltz", "shadow", "silver",
+        "ghost", "heart", "held", "love", "mirror", "storm", "tender", "velvet", "winter", "waltz", "shadow", "silver",
     },
 }
 
 
-def stable_seed(title: str) -> int:
-    digest = hashlib.sha256(title.encode("utf-8")).digest()
+def stable_seed(title: str, variant: int = 0) -> int:
+    digest = hashlib.sha256(f"{title}|variant:{variant}".encode("utf-8")).digest()
     return int.from_bytes(digest[:8], "big")
 
 
@@ -258,6 +260,181 @@ def choose_profile(title: str, rng: Random) -> GenreProfile:
         scores.append((len(words & hints), rng.random(), profile))
     scores.sort(key=lambda item: (item[0], item[1]), reverse=True)
     return scores[0][2]
+
+
+def arranger_notes(profile: GenreProfile) -> list[str]:
+    notes = {
+        "ambient web miniature": [
+            "sparse lead entrance",
+            "long chord sustains",
+            "low rhythmic density",
+            "soft support figures",
+        ],
+        "lo-fi room theme": [
+            "lazy drum feel",
+            "warm electric piano harmony",
+            "simple bass anchors",
+            "off-grid humanized attacks",
+        ],
+        "synthwave postcard": [
+            "steady kick pulse",
+            "octave bass movement in higher-energy sections",
+            "bright lead synth contour",
+            "wide pad harmony",
+        ],
+        "chamber folk sketch": [
+            "guitar-like broken support figures",
+            "gentle bass motion",
+            "woodwind or string lead",
+            "unhurried cadential coda",
+        ],
+        "cinematic waltz": [
+            "triple-meter phrasing",
+            "string-forward harmony",
+            "descending cadential coda",
+            "restrained final resolution",
+        ],
+    }
+    return notes.get(profile.name, ["stable arrangement", "clear melody ownership"])
+
+
+def load_preferences(path: Optional[Path]) -> dict[str, object]:
+    if not path or not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def preference_adjustment(manifest: dict[str, object], preferences: dict[str, object]) -> int:
+    score = 0
+    liked_instruments = set(preferences.get("liked_instruments", []))
+    disliked_instruments = set(preferences.get("disliked_instruments", []))
+    liked_genres = set(preferences.get("liked_genres", []))
+    disliked_genres = set(preferences.get("disliked_genres", []))
+    instruments = manifest.get("instruments", {})
+    if isinstance(instruments, dict):
+        used = set(str(value) for value in instruments.values())
+        score += 4 * len(used & liked_instruments)
+        score -= 6 * len(used & disliked_instruments)
+    genre = str(manifest.get("genre", ""))
+    if genre in liked_genres:
+        score += 5
+    if genre in disliked_genres:
+        score -= 8
+    return score
+
+
+def quality_score(manifest: dict[str, object], preferences: Optional[dict[str, object]] = None) -> tuple[int, list[str]]:
+    score = 100
+    findings = []
+    duration = float(manifest.get("duration_seconds", 0))
+    if not 55 <= duration <= 65:
+        score -= 15
+        findings.append("duration outside 55-65 seconds")
+    form = [section.get("name") for section in manifest.get("form", []) if isinstance(section, dict)]
+    for required in ["intro", "A theme", "B variation", "A return", "coda", "resolution"]:
+        if required not in form:
+            score -= 8
+            findings.append(f"missing {required} section")
+    if manifest.get("final_chord") not in {"Iadd9", "i9"}:
+        score -= 20
+        findings.append("final chord is not tonic")
+    motif = manifest.get("motif_degrees", [])
+    if isinstance(motif, list) and motif:
+        motif_degrees = [int(degree) for degree in motif]
+        if motif_degrees[0] == 1:
+            score += 2
+        if 1 in motif_degrees and 5 in motif_degrees:
+            score += 2
+        if len(set(motif_degrees)) < len(motif_degrees):
+            score -= 3
+            findings.append("motif repeats a pitch too early")
+        if max(motif_degrees) - min(motif_degrees) >= 4:
+            score += 2
+    chords = manifest.get("chords", [])
+    if isinstance(chords, list) and any(str(chord).startswith("V") for chord in chords[-2:]):
+        score += 2
+    instruments = manifest.get("instruments", {})
+    if isinstance(instruments, dict) and manifest.get("main_melody_owner") != instruments.get("main_melody"):
+        score -= 15
+        findings.append("main melody owner mismatch")
+    genre = str(manifest.get("genre", ""))
+    if isinstance(instruments, dict):
+        lead = instruments.get("main_melody")
+        if genre == "synthwave postcard" and lead == "lead synth":
+            score += 2
+        if genre == "cinematic waltz" and lead in {"flute", "trumpet"}:
+            score += 2
+        if genre == "ambient web miniature" and lead in {"music box", "flute"}:
+            score += 2
+    events = manifest.get("main_melody_events", [])
+    if isinstance(events, list):
+        degrees = [int(event.get("degree", 0)) for event in events if isinstance(event, dict) and event.get("degree")]
+        if degrees:
+            melodic_range = max(degrees) - min(degrees)
+            if 3 <= melodic_range <= 6:
+                score += 3
+            elif melodic_range <= 1:
+                score -= 8
+                findings.append("melody range is too narrow")
+        coda_events = [event for event in events if isinstance(event, dict) and event.get("section") == "coda"]
+        if len(coda_events) < 4:
+            score -= 8
+            findings.append("coda melody is too sparse")
+        signatures = {}
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            bar = int(event.get("bar", 0))
+            signatures.setdefault(bar, []).append(int(event.get("degree", 0)))
+        resolution_bar = None
+        for section in manifest.get("form", []):
+            if isinstance(section, dict) and section.get("name") == "resolution":
+                resolution_bar = int(section.get("start_bar", 0))
+        if resolution_bar:
+            phrases = [
+                tuple(signatures.get(bar, []))
+                for bar in range(max(1, resolution_bar - 4), resolution_bar)
+                if signatures.get(bar)
+            ]
+            if len(phrases) >= 3 and len(set(phrases)) <= 2:
+                score -= 15
+                findings.append("pre-resolution bars are too repetitive")
+        all_phrases = [tuple(value) for value in signatures.values() if value]
+        unique_phrases = set(all_phrases)
+        if len(unique_phrases) >= 8:
+            score += 4
+        elif len(unique_phrases) < 5:
+            score -= 8
+            findings.append("not enough phrase variety")
+    if preferences:
+        adjustment = preference_adjustment(manifest, preferences)
+        score += adjustment
+        if adjustment:
+            findings.append(f"preference adjustment {adjustment:+d}")
+    return max(0, min(110, score)), findings or ["no structural issues found"]
+
+
+def render_audio_if_available(midi_path: Path, soundfont: Optional[Path] = None) -> Optional[Path]:
+    wav_path = midi_path.with_suffix(".wav")
+    fluidsynth = shutil.which("fluidsynth")
+    timidity = shutil.which("timidity")
+    if fluidsynth and soundfont and soundfont.exists():
+        subprocess.run(
+            [fluidsynth, "-ni", str(soundfont), str(midi_path), "-F", str(wav_path), "-r", "44100"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return wav_path
+    if timidity:
+        subprocess.run(
+            [timidity, str(midi_path), "-Ow", "-o", str(wav_path)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return wav_path
+    return None
 
 
 def choose_key(profile: GenreProfile, rng: Random) -> int:
@@ -388,12 +565,12 @@ def track_with_program(name: str, channel: int, instrument: str) -> MidiTrack:
 
 def make_sections(bars: int) -> list[Section]:
     intro = 2 if bars >= 17 else 1
-    coda = 4 if bars >= 18 else 2
+    coda = 8 if bars >= 31 else 6 if bars >= 25 else 4 if bars >= 18 else 2
     resolution = 1
     body = max(8, bars - intro - coda - resolution)
     a_theme = min(8, max(4, body // 2))
     b_variation = min(6, max(3, (body - a_theme) // 2))
-    a_return = body - a_theme - b_variation
+    a_return = min(8, body - a_theme - b_variation)
     while a_return < 2 and a_theme > 4:
         a_theme -= 1
         a_return += 1
@@ -412,10 +589,8 @@ def make_sections(bars: int) -> list[Section]:
     used = sum(section.bar_count for section in sections)
     if used < bars - resolution:
         extra = bars - resolution - used
-        a_return_section = sections[-2]
         coda_section = sections[-1]
-        sections[-2] = Section(a_return_section.name, a_return_section.start_bar, a_return_section.bar_count + extra, a_return_section.energy)
-        sections[-1] = Section(coda_section.name, coda_section.start_bar + extra, coda_section.bar_count, coda_section.energy)
+        sections[-1] = Section(coda_section.name, coda_section.start_bar, coda_section.bar_count + extra, coda_section.energy)
     sections.append(Section("resolution", bars - resolution, resolution, 0.45))
     return sections
 
@@ -495,7 +670,7 @@ def add_bass(
             continue
         base_velocity = int(58 + section.energy * 18)
         humanized_note(track, channel, root, start, int(bar_ticks * 0.46), base_velocity, rng, timing=7)
-        if section.name in {"B variation", "A return"}:
+        if section.name in {"B variation", "A return"} and "ambient" not in section.name:
             humanized_note(track, channel, octave, start + bar_ticks // 4, int(bar_ticks * 0.18), 46, rng, timing=8)
         humanized_note(track, channel, fifth, start + bar_ticks // 2, int(bar_ticks * 0.42), 58, rng, timing=7)
 
@@ -585,9 +760,9 @@ def phrase_for_section(motif: list[int], section: Section, local_bar: int, mode:
         return motif if local_bar % 2 == 0 else [min(7, degree + 1) for degree in motif]
     if section.name == "coda":
         cadences = (
-            [[5, 4, 3], [4, 3, 2], [3, 2, 1], [2, 1]]
+            [[6, 5, 4], [5, 4, 3], [4, 3, 2], [3, 2, 1], [6, 4, 3], [5, 3, 2], [4, 2, 1], [2, 1]]
             if mode == "major"
-            else [[5, 4, 3], [6, 5, 4], [4, 2, 1], [7, 2, 1]]
+            else [[7, 6, 5], [6, 5, 4], [5, 4, 3], [4, 2, 1], [6, 4, 3], [5, 3, 2], [4, 2, 1], [7, 2, 1]]
         )
         return cadences[min(local_bar, len(cadences) - 1)]
     if local_bar % 4 == 1:
@@ -609,7 +784,7 @@ def add_main_melody(
     time_signature: tuple[int, int],
     sections: list[Section],
     rng: Random,
-) -> list[dict[str, object]]:
+) -> tuple[list[dict[str, object]], list[int]]:
     motif = melody_degrees(rng, mode)
     numerator, denominator = time_signature
     beat_ticks = int(PPQ * 4 / denominator)
@@ -638,7 +813,7 @@ def add_main_melody(
             velocity = int(72 + section.energy * 14)
             humanized_note(track, channel, pitch, start + offset, min(duration, bar_ticks - offset), velocity, rng, timing=9)
             melody_events.append({"bar": bar + 1, "section": section.name, "degree": degree, "pitch": pitch, "start_tick": start + offset})
-    return melody_events
+    return melody_events, motif
 
 
 def write_midi(path: Path, tracks: Iterable[MidiTrack]) -> None:
@@ -647,8 +822,16 @@ def write_midi(path: Path, tracks: Iterable[MidiTrack]) -> None:
     path.write_bytes(header + b"".join(rendered_tracks))
 
 
-def build_song(title: str, out_dir: Path) -> dict[str, object]:
-    seed = stable_seed(title)
+def build_song(
+    title: str,
+    out_dir: Path,
+    variant: int = 0,
+    suffix: str = "",
+    preferences: Optional[dict[str, object]] = None,
+    render_audio: bool = False,
+    soundfont: Optional[Path] = None,
+) -> dict[str, object]:
+    seed = stable_seed(title, variant)
     rng = Random(seed)
     profile = choose_profile(title, rng)
     key = choose_key(profile, rng)
@@ -701,7 +884,7 @@ def build_song(title: str, out_dir: Path) -> dict[str, object]:
     support_track = track_with_program("supporting figure", 3, support)
     add_harmony(harmony, 0, key, progression, resolving_chord, bar_ticks, bars, sections, rng)
     add_bass(bass, 1, key, progression, resolving_chord, bar_ticks, bars, sections, rng)
-    melody_events = add_main_melody(lead_track, 2, key, profile.mode, bar_ticks, bars, time_signature, sections, rng)
+    melody_events, motif = add_main_melody(lead_track, 2, key, profile.mode, bar_ticks, bars, time_signature, sections, rng)
     add_support(support_track, 3, key, progression, resolving_chord, bar_ticks, bars, sections, rng)
     tracks.extend([harmony, bass, lead_track, support_track])
 
@@ -719,29 +902,58 @@ def build_song(title: str, out_dir: Path) -> dict[str, object]:
         instruments["drums"] = "standard drum kit"
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    base = slugify(title)
+    base = slugify(title) + suffix
     midi_path = out_dir / f"{base}.mid"
     manifest_path = out_dir / f"{base}.json"
+    composition_path = out_dir / f"{base}.composition.json"
     write_midi(midi_path, tracks)
+
+    form = [
+        {
+            "name": section.name,
+            "start_bar": section.start_bar + 1,
+            "bar_count": section.bar_count,
+            "energy": section.energy,
+        }
+        for section in sections
+    ]
+    composition = {
+        "title": title,
+        "variant": variant,
+        "seed": seed,
+        "genre": profile.name,
+        "arranger_notes": arranger_notes(profile),
+        "key": note_name(key, profile.mode),
+        "mode": profile.mode,
+        "tempo_bpm": tempo,
+        "time_signature": f"{numerator}/{denominator}",
+        "form": form,
+        "motif_degrees": motif,
+        "chord_progression": [chord.symbol for chord in progression],
+        "resolving_chord": resolving_chord.symbol,
+        "instruments": instruments,
+        "rendering": {
+            "format": "midi",
+            "ppq": PPQ,
+            "humanized_timing": True,
+            "humanized_velocity": True,
+        },
+    }
+    composition_path.write_text(json.dumps(composition, indent=2) + "\n", encoding="utf-8")
 
     manifest = {
         "title": title,
+        "variant": variant,
         "seed": seed,
         "genre": profile.name,
+        "arranger_notes": arranger_notes(profile),
         "tempo_bpm": tempo,
         "time_signature": f"{numerator}/{denominator}",
         "key": note_name(key, profile.mode),
         "duration_seconds": round(duration_seconds, 2),
         "bar_count": bars,
-        "form": [
-            {
-                "name": section.name,
-                "start_bar": section.start_bar + 1,
-                "bar_count": section.bar_count,
-                "energy": section.energy,
-            }
-            for section in sections
-        ],
+        "form": form,
+        "motif_degrees": motif,
         "chords": [chord.symbol for chord in chords],
         "final_chord": resolving_chord.symbol,
         "resolution": "final bar uses tonic chord with root in bass",
@@ -749,19 +961,87 @@ def build_song(title: str, out_dir: Path) -> dict[str, object]:
         "main_melody_owner": lead,
         "main_melody_policy": "Only the main melody track contains the primary melody; other tracks play harmony, bass, rhythm, or supporting figures.",
         "main_melody_events": melody_events,
+        "composition_file": str(composition_path),
         "midi_file": str(midi_path),
     }
+    manifest["quality_score"], manifest["quality_findings"] = quality_score(manifest, preferences)
+    if render_audio:
+        try:
+            audio_path = render_audio_if_available(midi_path, soundfont)
+        except (OSError, subprocess.SubprocessError):
+            audio_path = None
+        manifest["audio_file"] = str(audio_path) if audio_path else None
+        manifest["audio_render_note"] = (
+            "Rendered audio with local MIDI renderer."
+            if audio_path
+            else "No local renderer found. Install timidity, or fluidsynth plus a soundfont, to render WAV."
+        )
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return manifest
+
+
+def generate_best_song(
+    title: str,
+    out_dir: Path,
+    candidates: int,
+    preferences: Optional[dict[str, object]] = None,
+    render_audio: bool = False,
+    soundfont: Optional[Path] = None,
+) -> dict[str, object]:
+    candidates = max(1, candidates)
+    if candidates == 1:
+        return build_song(title, out_dir, preferences=preferences, render_audio=render_audio, soundfont=soundfont)
+
+    candidate_dir = out_dir / (slugify(title) + "-candidates")
+    manifests = [
+        build_song(title, candidate_dir, variant=index, suffix=f"-candidate-{index + 1}", preferences=preferences)
+        for index in range(candidates)
+    ]
+    best = max(manifests, key=lambda manifest: (int(manifest.get("quality_score", 0)), -int(manifest.get("variant", 0))))
+    final = build_song(
+        title,
+        out_dir,
+        variant=int(best.get("variant", 0)),
+        preferences=preferences,
+        render_audio=render_audio,
+        soundfont=soundfont,
+    )
+    final["candidate_count"] = candidates
+    final["selected_candidate"] = int(best.get("variant", 0)) + 1
+    final["candidate_scores"] = [
+        {
+            "candidate": int(manifest.get("variant", 0)) + 1,
+            "score": manifest.get("quality_score"),
+            "genre": manifest.get("genre"),
+            "findings": manifest.get("quality_findings"),
+            "manifest_file": manifest.get("midi_file", "").replace(".mid", ".json"),
+        }
+        for manifest in manifests
+    ]
+    manifest_path = Path(str(final["midi_file"])).with_suffix(".json")
+    manifest_path.write_text(json.dumps(final, indent=2) + "\n", encoding="utf-8")
+    return final
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate a one-minute MIDI song from a title.")
     parser.add_argument("title", help="Song title to use as the deterministic composition seed.")
     parser.add_argument("--out", default="out", help="Output directory for MIDI and manifest files.")
+    parser.add_argument("--candidates", type=int, default=1, help="Generate and score N candidates, then keep the best.")
+    parser.add_argument("--preferences", type=Path, default=None, help="Optional JSON preference memory file.")
+    parser.add_argument("--render-audio", action="store_true", help="Try to render a WAV if timidity or fluidsynth is installed.")
+    parser.add_argument("--soundfont", type=Path, default=None, help="Optional soundfont path for fluidsynth rendering.")
     args = parser.parse_args()
 
-    manifest = build_song(args.title, Path(args.out))
+    preferences = load_preferences(args.preferences)
+    manifest = generate_best_song(
+        args.title,
+        Path(args.out),
+        candidates=args.candidates,
+        preferences=preferences,
+        render_audio=args.render_audio,
+        soundfont=args.soundfont,
+    )
     print(json.dumps(manifest, indent=2))
 
 

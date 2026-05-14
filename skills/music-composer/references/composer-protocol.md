@@ -32,7 +32,7 @@ Use these title cues:
 
 ## Critic Pass
 
-After generation, run `scripts/critique_song.py` against the manifest.
+After generation, run `scripts/critique_song.py` against the manifest. For higher quality, generate 3-5 candidates and keep the best-scoring one.
 
 The critic checks:
 
@@ -43,6 +43,33 @@ The critic checks:
 - repetitive final pre-resolution bars
 
 If the critic flags repetition before the resolution, revise the coda before delivering the MIDI.
+
+## Supercharged Workflow
+
+Use this loop for best results:
+
+1. Generate 3-5 candidates.
+2. Score each candidate with the deterministic critic and preference memory.
+3. Keep the best candidate.
+4. Inspect the `.composition.json` to understand motif, form, chords, and arrangement.
+5. Render audio only if local tools are available.
+6. When the user gives feedback, record it with `record_preference.py`.
+
+This is the skill equivalent of fine-tuning: the model is not retrained, but examples, scoring, and preference memory change future outputs.
+
+Use `references/song-recipes.json` as compact taste examples when the title is ambiguous.
+
+## Optional Listener Critic
+
+If Hermes can render or inspect audio in the local environment, add a second model pass after WAV rendering:
+
+- Does the title match the mood?
+- Is there a memorable motif?
+- Is the arrangement too dense?
+- Does the coda make the ending feel earned?
+- Does any section sound like filler?
+
+Use that feedback to regenerate candidates or ask the user which direction to prefer.
 
 ## Melody Ownership
 
