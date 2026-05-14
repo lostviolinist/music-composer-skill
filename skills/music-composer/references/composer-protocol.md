@@ -26,6 +26,8 @@ Use these title cues:
 - The main melody should grow from one small motif.
 - Bring the motif back after a contrasting section so the listener recognizes it.
 - Use smooth chord voicings rather than always stacking chords from root position.
+- Use harmonic surprise that still resolves: borrowed chords, secondary dominants, pedal motion, passing diminished chords, or modal mixture.
+- Avoid safe diatonic loops unless the user asks for simple, plain, or minimal harmony.
 - Vary velocities and timing slightly so the MIDI does not feel fully quantized.
 - Let arrangement energy change by section: sparse intro, clear A theme, fuller B variation, recognizable return, cadential coda, calm ending.
 - The four bars before the resolution should behave like a coda, not like another repeated loop.
@@ -39,6 +41,7 @@ The critic checks:
 - duration
 - expected form
 - tonic ending
+- harmonic interest
 - main melody ownership
 - repetitive final pre-resolution bars
 
@@ -49,15 +52,29 @@ If the critic flags repetition before the resolution, revise the coda before del
 Use this loop for best results:
 
 1. Generate 3-5 candidates.
-2. Score each candidate with the deterministic critic and preference memory.
-3. Keep the best candidate.
-4. Inspect the `.composition.json` to understand motif, form, chords, and arrangement.
-5. Render audio only if local tools are available.
-6. When the user gives feedback, record it with `record_preference.py`.
+2. Force candidates to explore different harmonic strategies.
+3. Score each candidate with the deterministic critic and preference memory.
+4. Keep the best candidate.
+5. Inspect the `.composition.json` to understand motif, form, chords, harmonic strategy, and arrangement.
+6. Render audio only if local tools are available.
+7. When the user gives feedback, record it with `record_preference.py`.
 
 This is the skill equivalent of fine-tuning: the model is not retrained, but examples, scoring, and preference memory change future outputs.
 
 Use `references/song-recipes.json` as compact taste examples when the title is ambiguous.
+
+## Harmonic Strategies
+
+Candidates should try different strategies:
+
+- `template_color`: genre-template harmonic color from the base profile.
+- `borrowed_chords`: parallel-mode color such as `bVII`, `bVI`, or minor `iv`.
+- `secondary_dominant`: temporary dominant gravity such as `V/vi` or `V/bVI`.
+- `pedal_motion`: stable bass or implied pedal with upper harmony moving above it.
+- `passing_diminished`: chromatic diminished tension between stable chords.
+- `modal_mixture`: brighter or darker mode mixture while preserving the final tonic.
+
+The selected candidate should name its strategy and chord progression in the response.
 
 ## Conversational Feedback
 

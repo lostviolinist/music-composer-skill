@@ -33,6 +33,32 @@ def phrase_signatures(events: list[dict[str, Any]]) -> dict[int, tuple[int, ...]
     return {bar: tuple(degrees) for bar, degrees in bars.items()}
 
 
+def harmonic_interest(manifest: dict[str, Any]) -> tuple[int, list[str]]:
+    chords = [str(chord) for chord in manifest.get("chords", [])]
+    strategy = str(manifest.get("harmonic_strategy", "template_color"))
+    joined = " ".join(chords)
+    score = 0
+    findings = []
+    non_diatonic_markers = ["b", "#", "/", "dim", "V/"]
+    tension_markers = ["V7", "dim", "aug", "iv", "bVI", "bVII", "V/"]
+    non_diatonic_count = sum(marker in joined for marker in non_diatonic_markers)
+    tension_count = sum(marker in joined for marker in tension_markers)
+
+    if strategy == "template_color" and non_diatonic_count == 0:
+        findings.append("Harmony is safe; try a borrowed, dominant, pedal, or diminished strategy.")
+        score -= 6
+    if strategy != "template_color":
+        score += 4
+    if non_diatonic_count:
+        score += min(8, non_diatonic_count * 3)
+    if tension_count >= 2:
+        score += 4
+    if len(set(chords)) < 4:
+        findings.append("Chord loop has too little variety.")
+        score -= 5
+    return score, findings
+
+
 def critique(manifest: dict[str, Any]) -> dict[str, Any]:
     findings: list[str] = []
     score = 100
@@ -51,6 +77,10 @@ def critique(manifest: dict[str, Any]) -> dict[str, Any]:
     if manifest.get("final_chord") not in TONIC_ENDINGS:
         findings.append("Final chord is not a tonic resolution.")
         score -= 20
+
+    harmonic_score, harmonic_findings = harmonic_interest(manifest)
+    score += harmonic_score
+    findings.extend(harmonic_findings)
 
     instruments = manifest.get("instruments", {})
     if manifest.get("main_melody_owner") != instruments.get("main_melody"):
@@ -89,12 +119,13 @@ def critique(manifest: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "title": manifest.get("title"),
-        "score": max(0, score),
+        "score": max(0, min(100, score)),
         "findings": findings,
         "checks": {
             "duration_seconds": duration,
             "form": names,
             "final_chord": manifest.get("final_chord"),
+            "harmonic_strategy": manifest.get("harmonic_strategy"),
             "main_melody_owner": manifest.get("main_melody_owner"),
         },
     }

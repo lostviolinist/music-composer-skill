@@ -41,6 +41,8 @@ CHORD_QUALITIES = {
     "sus2": [0, 2, 7],
     "sus4": [0, 5, 7],
     "dom7": [0, 4, 7, 10],
+    "dim7": [0, 3, 6, 9],
+    "aug": [0, 4, 8],
 }
 
 
@@ -92,6 +94,16 @@ class Section:
     start_bar: int
     bar_count: int
     energy: float
+
+
+HARMONIC_STRATEGIES = (
+    "template_color",
+    "borrowed_chords",
+    "secondary_dominant",
+    "pedal_motion",
+    "passing_diminished",
+    "modal_mixture",
+)
 
 
 PROFILES = [
@@ -298,6 +310,138 @@ def arranger_notes(profile: GenreProfile) -> list[str]:
     return notes.get(profile.name, ["stable arrangement", "clear melody ownership"])
 
 
+def strategy_for_variant(variant: int, rng: Random) -> str:
+    if variant < len(HARMONIC_STRATEGIES):
+        return HARMONIC_STRATEGIES[variant]
+    return rng.choice(HARMONIC_STRATEGIES)
+
+
+def harmonic_notes(strategy: str, mode: str) -> list[str]:
+    notes = {
+        "template_color": ["genre-template harmonic color", "smooth functional motion"],
+        "borrowed_chords": ["borrowed color from parallel mode", "brief non-diatonic lift before returning home"],
+        "secondary_dominant": ["temporary dominant pull", "stronger cadence into the next chord"],
+        "pedal_motion": ["stable pedal bass", "upper harmony shifts against a constant root"],
+        "passing_diminished": ["chromatic passing diminished chord", "small flash of tension between stable chords"],
+        "modal_mixture": ["mode mixture", "darker color in major or brighter lift in minor"],
+    }
+    result = list(notes.get(strategy, ["stable harmonic color"]))
+    result.append("minor home" if mode == "minor" else "major home")
+    return result
+
+
+def apply_harmonic_strategy(
+    progression: list[Chord],
+    profile: GenreProfile,
+    strategy: str,
+) -> list[Chord]:
+    if len(progression) < 4:
+        return progression
+
+    if profile.mode == "major":
+        if strategy == "borrowed_chords":
+            return [
+                Chord("Iadd9", 0, "add9"),
+                Chord("bVIIadd9", 10, "add9"),
+                Chord("iv7", 5, "min7"),
+                Chord("V7", 7, "dom7"),
+            ]
+        if strategy == "secondary_dominant":
+            return [
+                Chord("Imaj7", 0, "maj7"),
+                Chord("V/vi", 4, "dom7"),
+                Chord("vi7", 9, "min7"),
+                Chord("V7", 7, "dom7"),
+            ]
+        if strategy == "pedal_motion":
+            return [
+                Chord("Iadd9", 0, "add9"),
+                Chord("IV/I", 5, "maj7"),
+                Chord("bVII/I", 10, "add9"),
+                Chord("V7", 7, "dom7"),
+            ]
+        if strategy == "passing_diminished":
+            return [
+                Chord("Imaj7", 0, "maj7"),
+                Chord("#Idim7", 1, "dim7"),
+                Chord("ii7", 2, "min7"),
+                Chord("V7", 7, "dom7"),
+            ]
+        if strategy == "modal_mixture":
+            return [
+                Chord("Iadd9", 0, "add9"),
+                Chord("bVImaj7", 8, "maj7"),
+                Chord("iv9", 5, "min9"),
+                Chord("V7", 7, "dom7"),
+            ]
+        return progression
+
+    if strategy == "borrowed_chords":
+        return [
+            Chord("i9", 0, "min9"),
+            Chord("bVImaj7", 8, "maj7"),
+            Chord("iv9", 5, "min9"),
+            Chord("V7", 7, "dom7"),
+        ]
+    if strategy == "secondary_dominant":
+        return [
+            Chord("i9", 0, "min9"),
+            Chord("V/bVI", 3, "dom7"),
+            Chord("bVImaj7", 8, "maj7"),
+            Chord("V7", 7, "dom7"),
+        ]
+    if strategy == "pedal_motion":
+        return [
+            Chord("i9", 0, "min9"),
+            Chord("bVII/i", 10, "add9"),
+            Chord("bVI/i", 8, "maj7"),
+            Chord("V7", 7, "dom7"),
+        ]
+    if strategy == "passing_diminished":
+        return [
+            Chord("i9", 0, "min9"),
+            Chord("#idim7", 1, "dim7"),
+            Chord("ii-halfdim7", 2, "min7"),
+            Chord("V7", 7, "dom7"),
+        ]
+    if strategy == "modal_mixture":
+        return [
+            Chord("i9", 0, "min9"),
+            Chord("IVmaj7", 5, "maj7"),
+            Chord("bVImaj7", 8, "maj7"),
+            Chord("V7", 7, "dom7"),
+        ]
+    return progression
+
+
+def harmonic_interest(chords: list[str], strategy: str) -> tuple[int, list[str]]:
+    score = 0
+    findings = []
+    joined = " ".join(chords)
+    non_diatonic_markers = ["b", "#", "/", "dim", "V/"]
+    tension_markers = ["V7", "dim", "aug", "iv", "bVI", "bVII", "V/"]
+    non_diatonic_count = sum(marker in joined for marker in non_diatonic_markers)
+    tension_count = sum(marker in joined for marker in tension_markers)
+    unique_chords = len(set(chords))
+
+    if strategy != "template_color":
+        score += 4
+    if non_diatonic_count:
+        score += min(8, non_diatonic_count * 3)
+    else:
+        score -= 6
+        findings.append("harmony is too diatonic")
+    if tension_count >= 2:
+        score += 4
+    if unique_chords < 4:
+        score -= 5
+        findings.append("chord loop has too little variety")
+    if chords and chords[-1] not in {"Iadd9", "i9"}:
+        score -= 12
+        findings.append("harmonic color did not return to tonic")
+    return score, findings
+
+
 def load_preferences(path: Optional[Path]) -> dict[str, object]:
     if not path or not path.exists():
         return {}
@@ -338,6 +482,12 @@ def quality_score(manifest: dict[str, object], preferences: Optional[dict[str, o
     if manifest.get("final_chord") not in {"Iadd9", "i9"}:
         score -= 20
         findings.append("final chord is not tonic")
+    harmonic_delta, harmonic_findings = harmonic_interest(
+        [str(chord) for chord in manifest.get("chords", [])],
+        str(manifest.get("harmonic_strategy", "template_color")),
+    )
+    score += harmonic_delta
+    findings.extend(harmonic_findings)
     motif = manifest.get("motif_degrees", [])
     if isinstance(motif, list) and motif:
         motif_degrees = [int(degree) for degree in motif]
@@ -840,7 +990,9 @@ def build_song(
     numerator, denominator = time_signature
     bar_quarters = numerator * 4 / denominator
     seconds_per_bar = bar_quarters * 60 / tempo
-    progression = list(rng.choice(profile.progressions))
+    harmonic_strategy = strategy_for_variant(variant, rng)
+    base_progression = list(rng.choice(profile.progressions))
+    progression = apply_harmonic_strategy(base_progression, profile, harmonic_strategy)
     tonic_quality = "min9" if profile.mode == "minor" else "add9"
     resolving_chord = Chord("i9" if profile.mode == "minor" else "Iadd9", 0, tonic_quality)
     chords = progression + [resolving_chord]
@@ -923,12 +1075,15 @@ def build_song(
         "seed": seed,
         "genre": profile.name,
         "arranger_notes": arranger_notes(profile),
+        "harmonic_strategy": harmonic_strategy,
+        "harmonic_notes": harmonic_notes(harmonic_strategy, profile.mode),
         "key": note_name(key, profile.mode),
         "mode": profile.mode,
         "tempo_bpm": tempo,
         "time_signature": f"{numerator}/{denominator}",
         "form": form,
         "motif_degrees": motif,
+        "base_chord_progression": [chord.symbol for chord in base_progression],
         "chord_progression": [chord.symbol for chord in progression],
         "resolving_chord": resolving_chord.symbol,
         "instruments": instruments,
@@ -947,6 +1102,8 @@ def build_song(
         "seed": seed,
         "genre": profile.name,
         "arranger_notes": arranger_notes(profile),
+        "harmonic_strategy": harmonic_strategy,
+        "harmonic_notes": harmonic_notes(harmonic_strategy, profile.mode),
         "tempo_bpm": tempo,
         "time_signature": f"{numerator}/{denominator}",
         "key": note_name(key, profile.mode),
@@ -954,6 +1111,7 @@ def build_song(
         "bar_count": bars,
         "form": form,
         "motif_degrees": motif,
+        "base_chords": [chord.symbol for chord in base_progression],
         "chords": [chord.symbol for chord in chords],
         "final_chord": resolving_chord.symbol,
         "resolution": "final bar uses tonic chord with root in bass",
@@ -997,7 +1155,17 @@ def generate_best_song(
         build_song(title, candidate_dir, variant=index, suffix=f"-candidate-{index + 1}", preferences=preferences)
         for index in range(candidates)
     ]
-    best = max(manifests, key=lambda manifest: (int(manifest.get("quality_score", 0)), -int(manifest.get("variant", 0))))
+    selection_rng = Random(stable_seed(title, 10_000 + candidates))
+    strategy_rank = {strategy: selection_rng.random() for strategy in HARMONIC_STRATEGIES}
+    strategy_rank["template_color"] = -1.0
+    best = max(
+        manifests,
+        key=lambda manifest: (
+            int(manifest.get("quality_score", 0)),
+            strategy_rank.get(str(manifest.get("harmonic_strategy")), 0),
+            -int(manifest.get("variant", 0)),
+        ),
+    )
     final = build_song(
         title,
         out_dir,
@@ -1013,6 +1181,8 @@ def generate_best_song(
             "candidate": int(manifest.get("variant", 0)) + 1,
             "score": manifest.get("quality_score"),
             "genre": manifest.get("genre"),
+            "harmonic_strategy": manifest.get("harmonic_strategy"),
+            "chords": manifest.get("chords"),
             "findings": manifest.get("quality_findings"),
             "manifest_file": manifest.get("midi_file", "").replace(".mid", ".json"),
         }

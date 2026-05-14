@@ -1,7 +1,7 @@
 ---
 name: music-composer
 description: Use when the user asks to write, compose, make, or generate a song as an actual MIDI/instrumental artifact rather than lyrics or a Suno prompt. Creates original MIDI songs, melodies, chord progressions, website music, game music, ambient loops, and short title-based compositions.
-version: 1.4.0
+version: 1.5.0
 author: lostviolinist
 license: MIT
 metadata:
@@ -55,7 +55,8 @@ When making a song from scratch:
 
 1. Convert the title into 3-5 mood words.
 2. Pick the genre and meter from those mood words.
-3. Pick a chord progression before writing any melody.
+3. Pick a chord progression and harmonic strategy before writing any melody.
+   - Candidate generation should explore different harmonic strategies: template color, borrowed chords, secondary dominant, pedal motion, passing diminished, and modal mixture.
 4. Choose one lead instrument for the main melody.
 5. Shape a motif through repetition, contrast, and return.
 6. Add accompaniment in this order: harmony, bass, rhythm, texture.
@@ -64,11 +65,13 @@ When making a song from scratch:
 9. Check the manifest and critic output:
    - duration is roughly 60 seconds
    - form includes intro, A theme, B variation, A return, coda, and resolution
+   - harmonic strategy creates color without losing tonic resolution
    - the coda avoids repeating the same phrase for the final four bars
    - final chord resolves to tonic
    - only one instrument owns `main_melody`
    - supporting instruments do not duplicate the main melody
 10. Deliver the MIDI path, manifest path, selected candidate, critic score, and a compact musical summary.
+    - Include the selected harmonic strategy and chord progression.
 11. Ask: "What did you think: 1-5, and what should I change next time?"
 12. When the user replies with feedback, record it with `scripts/record_preference.py` using the manifest path from the most recent generated song.
 13. Revise if the result feels cluttered, unresolved, too repetitive, or too generic.
@@ -88,7 +91,7 @@ The script writes:
 - a `.mid` file
 - a `.json` manifest describing title, genre, time signature, key, form, chords, instruments, duration, and melody ownership
 - a `.composition.json` intermediate composition plan
-- candidate score metadata when `--candidates` is greater than 1
+- candidate score metadata, harmonic strategies, and chord progressions when `--candidates` is greater than 1
 
 Critique the result:
 
@@ -124,6 +127,7 @@ For deeper composing guidance, read `references/composer-protocol.md`. For compa
 4. Do not treat the generator output as only prose. Return the generated `.mid` path and manifest summary.
 5. Do not ignore the critic if it flags repetitive pre-resolution bars.
 6. Do not make the user run preference commands manually. Ask for their opinion and record it yourself.
+7. Do not pick only safe diatonic harmony when the user asks for stranger or less flat chords.
 
 ## Feedback Loop
 
@@ -150,6 +154,7 @@ Then acknowledge what was learned in one sentence. Future generations should inc
 - [ ] The song has a title.
 - [ ] The generated duration is roughly 55-65 seconds.
 - [ ] The manifest includes a clear miniature form.
+- [ ] The selected candidate includes harmonic color, unless the user asked for simple harmony.
 - [ ] The coda provides a distinct lead-in to the resolution.
 - [ ] The critic score is high, or any findings are explained.
 - [ ] If multiple candidates were generated, the selected candidate and score table are included.
