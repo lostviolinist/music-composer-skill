@@ -86,6 +86,8 @@ What did you think: 1-5? And should the next one be stranger, simpler, more emot
 
 Record their response with `record_preference.py --opinion`. If the opinion mentions flat chords, repetitive form, busy drums, sparse texture, good coda, or a liked lead instrument, the memory file should preserve those clues for future generations.
 
+For stronger taste learning, use blind audition mode. Generate 4 labeled versions, hide score and musical metadata until after rating, then record the ratings with `record_audition.py`. Treat critic disagreement as useful calibration data: future generations should lean toward the winning genre, lead instrument, harmonic strategy, and chord colors.
+
 ## Optional Listener Critic
 
 If Hermes can render or inspect audio in the local environment, add a second model pass after WAV rendering:

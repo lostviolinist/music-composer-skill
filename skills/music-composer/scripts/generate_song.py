@@ -454,6 +454,8 @@ def preference_adjustment(manifest: dict[str, object], preferences: dict[str, ob
     disliked_instruments = set(preferences.get("disliked_instruments", []))
     liked_genres = set(preferences.get("liked_genres", []))
     disliked_genres = set(preferences.get("disliked_genres", []))
+    liked_harmony = set(preferences.get("liked_harmony", []))
+    disliked_harmony = set(preferences.get("disliked_harmony", []))
     instruments = manifest.get("instruments", {})
     if isinstance(instruments, dict):
         used = set(str(value) for value in instruments.values())
@@ -464,6 +466,14 @@ def preference_adjustment(manifest: dict[str, object], preferences: dict[str, ob
         score += 5
     if genre in disliked_genres:
         score -= 8
+    strategy = str(manifest.get("harmonic_strategy", ""))
+    chords = {str(chord) for chord in manifest.get("chords", []) if chord}
+    if strategy in liked_harmony:
+        score += 4
+    if strategy in disliked_harmony:
+        score -= 6
+    score += 2 * len(chords & liked_harmony)
+    score -= 3 * len(chords & disliked_harmony)
     return score
 
 
@@ -1162,6 +1172,7 @@ def generate_best_song(
         manifests,
         key=lambda manifest: (
             int(manifest.get("quality_score", 0)),
+            preference_adjustment(manifest, preferences or {}),
             strategy_rank.get(str(manifest.get("harmonic_strategy")), 0),
             -int(manifest.get("variant", 0)),
         ),
@@ -1183,6 +1194,7 @@ def generate_best_song(
             "genre": manifest.get("genre"),
             "harmonic_strategy": manifest.get("harmonic_strategy"),
             "chords": manifest.get("chords"),
+            "preference_fit": preference_adjustment(manifest, preferences or {}),
             "findings": manifest.get("quality_findings"),
             "manifest_file": manifest.get("midi_file", "").replace(".mid", ".json"),
         }

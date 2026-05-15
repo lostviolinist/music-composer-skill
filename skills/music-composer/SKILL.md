@@ -1,7 +1,7 @@
 ---
 name: music-composer
 description: Use when the user asks to write, compose, make, or generate a song as an actual MIDI/instrumental artifact rather than lyrics or a Suno prompt. Creates original MIDI songs, melodies, chord progressions, website music, game music, ambient loops, and short title-based compositions.
-version: 1.6.0
+version: 1.7.0
 author: lostviolinist
 license: MIT
 metadata:
@@ -16,7 +16,7 @@ metadata:
 
 Create a short original MIDI composition from a title. The skill turns the title into a stable musical world: genre, tempo, time signature, key, chord progression, instruments, sectional form, and one main melody owner.
 
-Use the bundled generator for candidate artifacts, select the best-scoring candidate, then revise only within the same musical world unless the user asks for a different direction.
+Use the bundled generator for candidate artifacts, select the best-scoring candidate, then revise only within the same musical world unless the user asks for a different direction. When the user wants to improve taste, compare versions, or help the critic learn, use blind audition mode.
 
 This skill is for producing a `.mid` file and manifest, not for writing lyrics or prompts for external music generators.
 
@@ -82,6 +82,37 @@ What did you think: 1-5? And should the next one be stranger, simpler, more emot
 12. When the user replies with feedback, record it with `scripts/record_preference.py` using the manifest path from the most recent generated song.
 13. Revise if the result feels cluttered, unresolved, too repetitive, or too generic.
 
+## Blind Audition Workflow
+
+Use blind audition mode when the user wants to compare versions, rate candidates, calibrate the critic, or make the skill learn their taste.
+
+1. Generate 4 blind candidates:
+
+```bash
+python3 "${HERMES_SKILL_DIR}/scripts/generate_audition.py" "Title Goes Here" --out ./out --candidates 4 --preferences ~/.hermes/music-composer-preferences.json --render-audio
+```
+
+2. Show only the label and playable files. Do not reveal score, genre, harmony, or critic metadata before the user rates them.
+
+```text
+I made 4 blind versions of <title>. Listen in any order and rate each 1-5.
+
+A: <midi path or audio path>
+B: <midi path or audio path>
+C: <midi path or audio path>
+D: <midi path or audio path>
+
+Send ratings like: A=4, B=2, C=5, D=3
+```
+
+3. When the user responds, record the audition:
+
+```bash
+python3 "${HERMES_SKILL_DIR}/scripts/record_audition.py" "<audition_json_path>" --ratings "A=4,B=2,C=5,D=3" --opinion "<optional user notes>"
+```
+
+4. Tell the user the winner, whether the critic agreed, and one thing the skill learned. Future generations should include the preference memory.
+
 ## Tool Use
 
 Generate and select the best of three candidates:
@@ -115,6 +146,18 @@ Record user feedback as preference memory:
 
 ```bash
 python3 "${HERMES_SKILL_DIR}/scripts/record_preference.py" ./out/title-goes-here.json --opinion "4/5, liked the coda but the chords felt flat"
+```
+
+Generate a blind audition set:
+
+```bash
+python3 "${HERMES_SKILL_DIR}/scripts/generate_audition.py" "Title Goes Here" --out ./out --candidates 4 --preferences ~/.hermes/music-composer-preferences.json --render-audio
+```
+
+Record blind audition ratings:
+
+```bash
+python3 "${HERMES_SKILL_DIR}/scripts/record_audition.py" ./out/title-goes-here-audition-*/audition.json --ratings "A=4,B=2,C=5,D=3" --opinion "C had the best ending and stranger chords"
 ```
 
 Use preference memory in future generation:
@@ -159,6 +202,7 @@ When using research mode, make one focused change at a time, run the harness, co
 6. Do not make the user run preference commands manually. Ask for their opinion and record it yourself.
 7. Do not pick only safe diatonic harmony when the user asks for stranger or less flat chords.
 8. Do not change generator behavior without running the research harness when the task is explicitly about optimization or quality improvement.
+9. In blind audition mode, do not reveal candidate scores or musical metadata until after the user rates the versions.
 
 ## Feedback Loop
 
@@ -179,6 +223,8 @@ Then acknowledge what was learned in one sentence. Future generations should inc
 ```bash
 --preferences ~/.hermes/music-composer-preferences.json
 ```
+
+For blind auditions, keep track of the `audition.json` path. After the user gives ratings, call `record_audition.py`. If the critic disagreed with the user's winner, say so plainly and treat that as calibration data rather than an error.
 
 ## Response Style
 
