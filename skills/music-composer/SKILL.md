@@ -3,11 +3,18 @@ name: music-composer
 description: Use when the user asks to write, compose, make, or generate a song as an actual MIDI/instrumental artifact rather than lyrics or a Suno prompt. Creates original MIDI songs, melodies, chord progressions, website music, game music, ambient loops, and short title-based compositions.
 version: 1.7.0
 author: lostviolinist
-license: MIT
+license: MIT-0
+platforms: [macos, linux, windows]
 metadata:
   hermes:
     tags: [music, midi, composition, creative]
     category: creative
+  openclaw:
+    requires:
+      bins: [python3]
+    homepage: https://github.com/lostviolinist/music-composer-skill
+    tags: [music, midi, composition, creative]
+    emoji: "🎵"
 ---
 
 # Music Composer

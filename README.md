@@ -78,13 +78,30 @@ In normal Hermes use, the agent should show only candidate labels and playable f
 
 ## Publish
 
-This repository is already installable directly from GitHub:
+### Hermes Skills Hub
+
+Hermes can install this skill directly from GitHub:
 
 ```bash
 hermes skills install lostviolinist/music-composer-skill/skills/music-composer
 ```
 
-For public discovery outside direct GitHub installs, publish the skill folder to ClawHub:
+Or users can add this repo as a Hermes tap and install by skill slug:
+
+```bash
+hermes skills tap add lostviolinist/music-composer-skill
+hermes skills install lostviolinist/music-composer-skill/music-composer
+```
+
+To publish/update the GitHub-backed Hermes tap from a local checkout:
+
+```bash
+hermes skills publish skills/music-composer --to github --repo lostviolinist/music-composer-skill
+```
+
+### OpenClaw / ClawHub
+
+For OpenClaw public discovery, publish the skill folder to ClawHub:
 
 ```bash
 npm i -g clawhub
@@ -92,7 +109,7 @@ clawhub login
 clawhub skill publish ./skills/music-composer --owner lostviolinist --slug music-composer --name "Music Composer" --version 1.7.0 --changelog "Add blind audition rating loop" --tags latest,music,midi,composition
 ```
 
-For skills.sh-style discovery, keep the GitHub repo public with a normal `SKILL.md` path and add a README install command. skills.sh indexes GitHub-backed skills and install telemetry from the `skills` CLI.
+Hermes also integrates with ClawHub as a hub source, so publishing to ClawHub makes the same skill discoverable from OpenClaw and installable/searchable by Hermes through its ClawHub integration.
 
 ## Research Harness
 
