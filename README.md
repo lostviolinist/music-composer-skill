@@ -106,10 +106,16 @@ For OpenClaw public discovery, publish the skill folder to ClawHub:
 ```bash
 npm i -g clawhub
 clawhub login
-clawhub skill publish ./skills/music-composer --owner lostviolinist --slug music-composer --name "Music Composer" --version 1.7.0 --changelog "Add blind audition rating loop" --tags latest,music,midi,composition
+clawhub skill publish ./skills/music-composer --owner lostviolinist --slug midi-music-composer --name "MIDI Music Composer" --version 1.7.0 --changelog "Add blind audition rating loop" --tags latest,music,midi,composition
 ```
 
 Hermes also integrates with ClawHub as a hub source, so publishing to ClawHub makes the same skill discoverable from OpenClaw and installable/searchable by Hermes through its ClawHub integration.
+
+Inspect the published ClawHub listing:
+
+```bash
+clawhub inspect midi-music-composer
+```
 
 ## Research Harness
 
